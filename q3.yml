@@ -91,6 +91,17 @@
     with_items:
       - "{{ namespaces }}"
 
+  - name: Enable Forwarding
+    shell: |
+      docker exec LC1 sysctl net.ipv4.ip_forward
+      docker exec LC2 sysctl net.ipv4.ip_forward
+      docker exec SC1 sysctl net.ipv4.ip_forward
+      docker exec SC2 sysctl net.ipv4.ip_forward
+
+      ip netns exec ns1 sysctl net.ipv4.ip_forward
+      ip netns exec ns2 sysctl net.ipv4.ip_forward
+      ip netns exec ns3 sysctl net.ipv4.ip_forward
+
   - name: Create Namespace VETH Pairs
     shell: |
       ip netns exec ns1 ip link show n1 ; if [ $? -ne 0 ] ; then ip link add n1 type veth peer name c1 ; fi
@@ -121,6 +132,32 @@
       docker exec LC2 ip link set dev c2 up
       docker exec LC2 ip link set dev c3 up
 
+  - name: IP addressess to Namespace
+    shell: |
+      ip netns exec ns1 ip addr show n1 | awk 'FNR==3{ print $2 }' | grep -w '^192.168.130.1/24' ; if [ $? -ne 0 ] ; then ip netns exec ns1 ip addr add 192.168.130.1/24 dev n1 ; fi
+      
+      ip netns exec ns2 ip addr show n2 | awk 'FNR==3{ print $2 }' | grep -w '^192.168.140.1/24' ; if [ $? -ne 0 ] ; then ip netns exec ns2 ip addr add 192.168.140.1/24 dev n2 ; fi
+      
+      ip netns exec ns3 ip addr show n3 | awk 'FNR==3{ print $2 }' | grep -w '^192.168.150.1/24' ; if [ $? -ne 0 ] ; then ip netns exec ns3 ip addr add 192.168.150.1/24 dev n3 ; fi
+
+  - name: IP addresses to containers
+    shell: |
+      docker exec LC1 ip addr show c1 | awk 'FNR==3{ print $2 }' | grep -w '^192.168.130.2/24' ; if [ $? -ne 0 ] ; then docker exec LC1 ip addr add 192.168.130.2/24 dev c1 ; fi
+      docker exec LC2 ip addr show c2 | awk 'FNR==3{ print $2 }' | grep -w '^192.168.140.2/24' ; if [ $? -ne 0 ] ; then docker exec LC2 ip addr add 192.168.140.2/24 dev c2 ; fi
+      docker exec LC2 ip addr show c3 | awk 'FNR==3{ print $2 }' | grep -w '^192.168.150.2/24' ; if [ $? -ne 0 ] ; then docker exec LC2 ip addr add 192.168.150.2/24 dev c3 ; fi
+
+      docker exec LC1 ip addr show aa | awk 'FNR==3{ print $2 }' | grep -w '^192.168.160.1/24' ; if [ $? -ne 0 ] ; then docker exec LC1 ip addr add 192.168.160.1/24 dev aa ; fi
+      docker exec LC1 ip addr show cc | awk 'FNR==3{ print $2 }' | grep -w '^192.168.170.1/24' ; if [ $? -ne 0 ] ; then docker exec LC1 ip addr add 192.168.170.1/24 dev cc ; fi
+
+      docker exec LC2 ip addr show ee | awk 'FNR==3{ print $2 }' | grep -w '^192.168.180.1/24' ; if [ $? -ne 0 ] ; then docker exec LC2 ip addr add 192.168.180.1/24 dev ee ; fi
+      docker exec LC2 ip addr show gg | awk 'FNR==3{ print $2 }' | grep -w '^192.168.190.1/24' ; if [ $? -ne 0 ] ; then docker exec LC2 ip addr add 192.168.190.1/24 dev gg ; fi
+
+      docker exec SC1 ip addr show bb | awk 'FNR==3{ print $2 }' | grep -w '^192.168.160.2/24' ; if [ $? -ne 0 ] ; then docker exec SC1 ip addr add 192.168.160.2/24 dev bb ; fi
+      docker exec SC1 ip addr show ff | awk 'FNR==3{ print $2 }' | grep -w '^192.168.180.2/24' ; if [ $? -ne 0 ] ; then docker exec SC1 ip addr add 192.168.180.2/24 dev ff ; fi
+
+      docker exec SC2 ip addr show dd | awk 'FNR==3{ print $2 }' | grep -w '^192.168.170.2/24' ; if [ $? -ne 0 ] ; then docker exec SC2 ip addr add 192.168.170.2/24 dev dd ; fi
+      docker exec SC2 ip addr show hh | awk 'FNR==3{ print $2 }' | grep -w '^192.168.190.2/24' ; if [ $? -ne 0 ] ; then docker exec SC2 ip addr add 192.168.190.2/24 dev hh ; fi
+
   - name: Create bridge inside namespace
     shell: |
       ip netns exec ns1 brctl show | grep -w '^br'; if [ $? -ne 0 ] ; then ip netns exec ns1 brctl addbr br ; fi
@@ -142,4 +179,45 @@
     shell: |
       ip netns exec ns1 brctl show br | grep -w 'vxlan' ; if [ $? -ne 0 ] ; then ip netns exec ns1 brctl addif br vxlan ; fi
       ip netns exec ns3 brctl show br | grep -w 'vxlan' ; if [ $? -ne 0 ] ; then ip netns exec ns3 brctl addif br vxlan ; fi
-    
+
+  - name: Create GRE devices
+    shell: |
+      docker exec LC1 ip link show gretun ; if [ $? -ne 0 ] ; then docker exec LC1 ip tunnel add gretun mode gre local 192.168.160.1 remote 192.168.180.1 ; fi
+      docker exec LC2 ip link show gretun ; if [ $? -ne 0 ] ; then docker exec LC2 ip tunnel add gretun mode gre local 192.168.180.1 remote 192.168.160.1 ; fi
+
+  - name: GRE IPs
+    shell: |
+      docker exec LC1 ip addr show gretun | awk 'FNR==3{ print $2 }' | grep -w '^192.168.130.3/24' ; if [ $? -ne 0 ] ; then docker exec LC1 ip addr add 192.168.130.3/24 dev gretun ; fi
+      docker exec LC2 ip addr show gretun | awk 'FNR==3{ print $2 }' | grep -w '^192.168.140.3/24' ; if [ $? -ne 0 ] ; then docker exec LC2 ip addr add 192.168.140.3/24 dev gretun ; fi
+      docker exec LC2 ip addr show gretun | awk 'FNR==5{ print $2 }' | grep -w '^192.168.150.3/24' ; if [ $? -ne 0 ] ; then docker exec LC2 ip addr add 192.168.150.3/24 dev gretun ; fi
+
+  - name: GRE interfaces UP
+    shell: |
+      docker exec LC1 ip link set dev gretun up
+      docker exec LC2 ip link set dev gretun up
+      docker exec LC2 ip link set dev gretun up
+
+  - name: Add routes in Namespaces
+    shell: |
+      ip netns exec ns1 ip route show default | grep default; if [ $? -ne 0 ] ; then ip netns exec ns1 ip route add default via 192.168.130.3 ; fi
+      ip netns exec ns2 ip route show default | grep default ; if [ $? -ne 0 ] ; then ip netns exec ns2 ip route add default via 192.168.140.3 ; fi
+      ip netns exec ns3 ip route show default | grep default ; if [ $? -ne 0 ] ; then ip netns exec ns3 ip route add default via 192.168.150.3 ; fi
+
+  - name: Add IP routes in LC1
+    shell: |
+      docker exec LC1 ip route show | grep '192.168.130.0/24 dev gretun' ; if [ $? -eq 0 ] ; then docker exec LC1 ip route del 192.168.130.0/24 dev gretun ; fi
+      docker exec LC1 ip route show | grep '192.168.150.0/24 dev gretun' ; if [ $? -ne 0 ] ; then docker exec LC1 ip route add 192.168.150.0/24 dev gretun ; fi
+      docker exec LC1 ip route show | grep '192.168.140.0/24 dev gretun' ; if [ $? -ne 0 ] ; then docker exec LC1 ip route add 192.168.140.0/24 dev gretun ; fi
+      docker exec LC1 ip route show | grep '192.168.180.0/24 via 192.168.160.2' ; if [ $? -ne 0 ] ; then docker exec LC1 ip route add 192.168.180.0/24 via 192.168.160.2 ; fi
+      
+  - name: Add IP routes in LC2
+    shell: |
+      docker exec LC2 ip route show | grep '192.168.140.0/24 dev gretun' ; if [ $? -eq 0 ] ; then docker exec LC2 ip route del 192.168.140.0/24 dev gretun ; fi
+      docker exec LC2 ip route show | grep '192.168.150.0/24 dev gretun' ; if [ $? -eq 0 ] ; then docker exec LC2 ip route del 192.168.150.0/24 dev gretun ; fi
+      docker exec LC2 ip route show | grep '192.168.130.0/24 dev gretun' ; if [ $? -ne 0 ] ; then docker exec LC2 ip route add 192.168.130.0/24 dev gretun ; fi
+      docker exec LC2 ip route show | grep '192.168.160.0/24 via 192.168.180.2' ; if [ $? -ne 0 ] ; then docker exec LC2 ip route add 192.168.160.0/24 via 192.168.180.2 ; fi
+      
+  - name: Add IP routes in SC1
+    shell: |
+      docker exec SC1 ip route show | grep '192.168.130.0/24 via 192.168.160.1' ; if [ $? -ne 0 ] ; then docker exec SC1 ip route add 192.168.130.0/24 via 192.168.160.1 ; fi
+      docker exec SC1 ip route show | grep '192.168.150.0/24 via 192.168.180.1' ; if [ $? -ne 0 ] ; then docker exec SC1 ip route add 192.168.150.0/24 via 192.168.180.1 ; fi
