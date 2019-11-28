@@ -1,0 +1,6 @@
+PING google.com (172.217.164.174) 56(84) bytes of data.
+64 bytes from iad23s69-in-f14.1e100.net (172.217.164.174): icmp_seq=1 ttl=54 time=9.28 ms
+
+--- google.com ping statistics ---
+1 packets transmitted, 1 received, 0% packet loss, time 0ms
+rtt min/avg/max/mdev = 9.289/9.289/9.289/0.000 ms

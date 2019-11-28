@@ -1,0 +1,145 @@
+---
+- hosts: localhost
+  gather_facts: no
+  become: yes
+  vars:
+    ansible_python_interpreter: /usr/bin/python2
+    containers: [LC1, LC2, SC1, SC2]
+    namespaces: [ns1, ns2, ns3]
+  tasks:
+  - name: Build Docker Image
+    docker_image:
+      name: ubuntu
+      build:
+        path: ./
+      state: present
+      source: build
+
+  - name: Spawning containers
+    docker_container:
+      name: "{{ item }}"
+      image: ubuntu:latest
+      hostname: "{{ item }}"
+      privileged: yes
+      interactive: yes
+      tty: yes
+    with_items:
+      - "{{ containers }}"
+  
+  - name: Create VETH pairs
+    shell: |
+      docker exec LC1 ip link show aa ; if [ $? -ne 0 ] ; then ip link add aa type veth peer name bb ; fi
+      docker exec LC1 ip link show cc ; if [ $? -ne 0 ] ; then ip link add cc type veth peer name dd ; fi
+      docker exec LC2 ip link show ee ; if [ $? -ne 0 ] ; then ip link add ee type veth peer name ff ; fi
+      docker exec LC2 ip link show gg ; if [ $? -ne 0 ] ; then ip link add gg type veth peer name hh ; fi
+
+  - name: Get PIDs
+    shell: 
+      docker inspect LC1 | grep Pid | awk -c FNR==1'{print $2}' | cut -d ',' -f 1
+    register: LC1_pid
+
+  - name: Get PIDs
+    shell: 
+      docker inspect LC2 | grep Pid | awk -c FNR==1'{print $2}' | cut -d ',' -f 1
+    register: LC2_pid
+    
+  - name: Get PIDs
+    shell: 
+      docker inspect SC1 | grep Pid | awk -c FNR==1'{print $2}' | cut -d ',' -f 1
+    register: SC1_pid
+  
+  - name: Get PIDs
+    shell: 
+      docker inspect SC2 | grep Pid | awk -c FNR==1'{print $2}' | cut -d ',' -f 1
+    register: SC2_pid
+
+  - name: Soft links
+    shell: |
+      if [ ! -f /var/run/netns/{{ LC1_pid.stdout }} ] ; then ln -s /proc/{{ LC1_pid.stdout }}/ns/net /var/run/netns/{{ LC1_pid.stdout }} ; fi
+      if [ ! -f /var/run/netns/{{ LC2_pid.stdout }} ] ; then ln -s /proc/{{ LC2_pid.stdout }}/ns/net /var/run/netns/{{ LC2_pid.stdout }} ; fi
+      if [ ! -f /var/run/netns/{{ SC1_pid.stdout }} ] ; then ln -s /proc/{{ SC1_pid.stdout }}/ns/net /var/run/netns/{{ SC1_pid.stdout }} ; fi
+      if [ ! -f /var/run/netns/{{ SC2_pid.stdout }} ] ; then ln -s /proc/{{ SC2_pid.stdout }}/ns/net /var/run/netns/{{ SC2_pid.stdout }} ; fi
+
+  - name: Attach VETH Pairs
+    shell: | 
+      ip link show aa ; if [ $? -eq 0 ] ; then ip link set dev aa netns "{{ LC1_pid.stdout }}" ; fi
+      ip link show bb ; if [ $? -eq 0 ] ; then ip link set dev bb netns "{{ SC1_pid.stdout }}" ; fi
+      ip link show cc ; if [ $? -eq 0 ] ; then ip link set dev cc netns "{{ LC1_pid.stdout }}" ; fi
+      ip link show dd ; if [ $? -eq 0 ] ; then ip link set dev dd netns "{{ SC2_pid.stdout }}" ; fi
+      ip link show ee ; if [ $? -eq 0 ] ; then ip link set dev ee netns "{{ LC2_pid.stdout }}" ; fi
+      ip link show ff ; if [ $? -eq 0 ] ; then ip link set dev ff netns "{{ SC1_pid.stdout }}" ; fi
+      ip link show gg ; if [ $? -eq 0 ] ; then ip link set dev gg netns "{{ LC2_pid.stdout }}" ; fi
+      ip link show hh ; if [ $? -eq 0 ] ; then ip link set dev hh netns "{{ SC2_pid.stdout }}" ; fi
+
+  - name: VETH Pairs UP
+    shell: |
+      docker exec LC1 ip link set dev aa up
+      docker exec LC1 ip link set dev cc up
+      docker exec LC2 ip link set dev ee up
+      docker exec LC2 ip link set dev gg up
+      docker exec SC1 ip link set dev bb up
+      docker exec SC1 ip link set dev ff up
+      docker exec SC2 ip link set dev dd up
+      docker exec SC2 ip link set dev hh up
+
+  - name: Create Namespace
+    vars:
+      ns_file: /var/run/netns/{{ item }}
+    command: ip netns add "{{ item }}"
+    args:
+      creates: "{{ ns_file }}"
+    with_items:
+      - "{{ namespaces }}"
+
+  - name: Create Namespace VETH Pairs
+    shell: |
+      ip netns exec ns1 ip link show n1 ; if [ $? -ne 0 ] ; then ip link add n1 type veth peer name c1 ; fi
+      ip netns exec ns2 ip link show n2 ; if [ $? -ne 0 ] ; then ip link add n2 type veth peer name c2 ; fi
+      ip netns exec ns3 ip link show n3 ; if [ $? -ne 0 ] ; then ip link add n3 type veth peer name c3 ; fi
+
+  - name: Attach Namespace VETH Pairs
+    shell: |
+      ip netns exec ns1 ip link show n1 ; if [ $? -ne 0 ] ; then ip link set dev n1 netns ns1 ; fi
+      ip netns exec ns2 ip link show n2 ; if [ $? -ne 0 ] ; then ip link set dev n2 netns ns2 ; fi
+      ip netns exec ns3 ip link show n3 ; if [ $? -ne 0 ] ; then ip link set dev n3 netns ns3 ; fi
+
+  - name: Attach Container VETH Pairs
+    shell: | 
+      ip link show c1 ; if [ $? -eq 0 ] ; then ip link set dev c1 netns "{{ LC1_pid.stdout }}" ; fi
+      ip link show c2 ; if [ $? -eq 0 ] ; then ip link set dev c2 netns "{{ LC2_pid.stdout }}" ; fi
+      ip link show c3 ; if [ $? -eq 0 ] ; then ip link set dev c3 netns "{{ LC2_pid.stdout }}" ; fi
+
+  - name: Set Namespace VETH Pairs UP
+    shell: |
+      ip netns exec ns1 ip link set dev n1 up
+      ip netns exec ns2 ip link set dev n2 up
+      ip netns exec ns3 ip link set dev n3 up
+  
+  - name: Set Container VETH Pairs UP
+    shell: |
+      docker exec LC1 ip link set dev c1 up
+      docker exec LC2 ip link set dev c2 up
+      docker exec LC2 ip link set dev c3 up
+
+  - name: Create bridge inside namespace
+    shell: |
+      ip netns exec ns1 brctl show | grep -w '^br'; if [ $? -ne 0 ] ; then ip netns exec ns1 brctl addbr br ; fi
+      ip netns exec ns1 ip link set dev br up
+ 
+      ip netns exec ns2 brctl show | grep -w '^br'; if [ $? -ne 0 ] ; then ip netns exec ns2 brctl addbr br ; fi
+      ip netns exec ns2 ip link set dev br up
+
+      ip netns exec ns3 brctl show | grep -w '^br'; if [ $? -ne 0 ] ; then ip netns exec ns3 brctl addbr br ; fi
+      ip netns exec ns3 ip link set dev br up
+
+  - name: Create VXLAN devices
+    shell: |
+      ip netns exec ns1 ip link show vxlan ; if [ $? -ne 0 ] ; then ip netns exec ns1 ip link add vxlan type vxlan id 42 local 192.168.130.1 remote 192.168.150.1 dstport 4789 dev n1; ip netns exec ns1 ip link set dev vxlan up ; fi
+      
+      ip netns exec ns3 ip link show vxlan ; if [ $? -ne 0 ] ; then ip netns exec ns3 ip link add vxlan type vxlan id 42 local 192.168.150.1 remote 192.168.130.1 dstport 4789 dev n3; ip netns exec ns3 ip link set dev vxlan up ; fi
+
+  - name: Attach VXLANs to bridge
+    shell: |
+      ip netns exec ns1 brctl show br | grep -w 'vxlan' ; if [ $? -ne 0 ] ; then ip netns exec ns1 brctl addif br vxlan ; fi
+      ip netns exec ns3 brctl show br | grep -w 'vxlan' ; if [ $? -ne 0 ] ; then ip netns exec ns3 brctl addif br vxlan ; fi
+    

@@ -1,0 +1,48 @@
+- hosts: localhost
+  gather_facts: no
+  become: yes
+  vars:
+    ansible_python_interpreter: /usr/bin/python2
+  tasks:
+
+  - docker_network:
+      name: foobar
+      driver: bridge
+      ipam_config:
+        - subnet: '3.3.3.0/24'
+          gateway: 3.3.3.1
+      state: present
+
+  - name: Build Docker image
+    docker_image:
+      name: ubuntu
+      build:
+        path: ./
+      state: present
+      source: build
+
+  - name: Spawning container
+    docker_container:
+      name: C1
+      image: ubuntu:latest
+      state: started
+      hostname: C1
+      privileged: yes
+      interactive: yes
+      tty: yes
+      networks:
+        - name: foobar
+          ipv4_address: 3.3.3.3
+
+  - name: Spawning container
+    docker_container:
+      name: C2
+      image: ubuntu:latest
+      state: started
+      hostname: C2
+      privileged: yes
+      interactive: yes
+      tty: yes
+      networks:
+        - name: foobar
+          ipv4_address: 3.3.3.4
