@@ -1,0 +1,49 @@
+---
+- hosts: localhost
+  gather_facts: False
+  vars_files:
+    - ./{{ tenant_file }}
+    - ./{{ tenant_container }}
+
+  tasks:
+  - name: Attach VETH Pairs to Container1
+    shell: |
+          ip link show "{{ item.C1_veth }}" ; if [ $? -eq 0 ] ; then ip link set dev "{{ item.C1_veth }}" netns "{{ item.c1_pid }}" ; fi
+          docker exec "{{ item.container_1 }}" ip link set dev "{{ item.C1_veth }}" up
+    with_items:
+      - "{{ Container }}"
+
+  - name: Attach VETH Pairs to Container2
+    shell: |
+          ip link show "{{ item.C2_veth }}" ; if [ $? -eq 0 ] ; then ip link set dev "{{ item.C2_veth }}" netns "{{ item.c2_pid }}" ; fi
+          docker exec "{{ item.container_2 }}" ip link set dev "{{ item.C2_veth }}" up
+    with_items:
+      - "{{ Container }}"
+ 
+  - name: IP addresses to Container1
+    shell: |
+      docker exec "{{ item.container_1 }}" ip addr show "{{ item.C1_veth }}" | awk 'FNR==3{ print $2 }' | grep -w '^{{ item.c1_IP }}' ; if [ $? -ne 0 ] ; then docker exec "{{ item.container_1 }}" ip addr add "{{ item.c1_IP }}" dev "{{ item.C1_veth }}" ; fi
+    with_items:
+      - "{{ Tenant }}"
+      
+  - name: IP addresses to Container2
+    shell: |
+      docker exec "{{ item.container_2 }}" ip addr show "{{ item.C2_veth }}" | awk 'FNR==3{ print $2 }' | grep -w '^{{ item.c2_IP }}' ; if [ $? -ne 0 ] ; then docker exec "{{ item.container_2 }}" ip addr add "{{ item.c2_IP }}" dev "{{ item.C2_veth }}" ; fi
+    with_items:
+      - "{{ Tenant }}"
+
+  - name: IP routes in Container1 with L3 and GRE ntwk type
+    shell: |      
+      docker exec "{{ item.container_1 }}" ip route show | grep '{{ item.c1_route }}' ; if [ $? -ne 0 ] ; then docker exec "{{ item.container_1 }}" ip route add "{{ item.c1_route }}" dev "{{ item.C1_veth }}" ; fi
+    when:
+      - item.network_type == "GRE" or item.network_type == "L3"
+    with_items:
+      - "{{ Tenant }}"
+
+  - name: IP routes in Container2 with L3 and GRE ntwk type
+    shell: |      
+      docker exec "{{ item.container_2 }}" ip route show | grep '{{ item.c2_route }}' ; if [ $? -ne 0 ] ; then docker exec "{{ item.container_2 }}" ip route add "{{ item.c2_route }}" dev "{{ item.C2_veth }}" ; fi
+    when:
+      - item.network_type == "GRE" or item.network_type == "L3"
+    with_items:
+      - "{{ Tenant }}"

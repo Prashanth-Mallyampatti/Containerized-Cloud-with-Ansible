@@ -1,0 +1,65 @@
+---
+- hosts: localhost
+  gather_facts: False
+  vars_files:
+    - ./{{ tenant_file }}
+
+  tasks:
+  - name: Build Docker Image
+    docker_image:
+      name: ubuntu
+      build:
+        path: ./
+      state: present
+      source: build
+
+  - name: Spawn Container1
+    docker_container:
+      name: "{{ item.container_1 }}"
+      image: ubuntu:latest
+      hostname: "{{ item.container_1 }}"
+      privileged: yes
+      interactive: yes
+      tty: yes
+    with_items:
+      - "{{ Tenant }}"
+  
+  - name: Spawn Container2
+    docker_container:
+      name: "{{ item.container_2 }}"
+      image: ubuntu:latest
+      hostname: "{{ item.container_2 }}"
+      privileged: yes
+      interactive: yes
+      tty: yes
+    with_items:
+      - "{{ Tenant }}"
+
+  - name: Create VETH pairs container1 namespace1
+    shell: |
+      ip link show "{{ item.C1_veth }}" ; if [ $? -ne 0 ] ; then ip link add "{{ item.C1_veth }}" type veth peer name "{{ item.ns1_veth }}" ; fi
+    with_items:
+      - "{{ Tenant }}"
+    
+  - name: Create VETH pairs container1 namespace1
+    shell: |
+      ip link show "{{ item.C2_veth }}" ; if [ $? -ne 0 ] ; then ip link add "{{ item.C2_veth }}" type veth peer name "{{ item.ns2_veth }}" ; fi
+    with_items:
+      - "{{ Tenant }}"
+
+  - name: Attach Tenant VETH Pairs to Namespaces
+    shell: |
+      ip netns exec "{{ item.namespace_1 }}" ip link show "{{ item.ns1_veth }}" ; if [ $? -ne 0 ] ; then ip link set "{{ item.ns1_veth }}" netns "{{ item.namespace_1 }}" ; fi
+      ip netns exec "{{ item.namespace_1 }}" ip link set dev "{{ item.ns1_veth }}" up
+      
+      ip netns exec "{{ item.namespace_2 }}" ip link show "{{ item.ns2_veth }}" ; if [ $? -ne 0 ] ; then ip link set "{{ item.ns2_veth }}" netns "{{ item.namespace_2 }}" ; fi
+      ip netns exec "{{ item.namespace_2 }}" ip link set dev "{{ item.ns2_veth }}" up
+    with_items: 
+      - "{{ Tenant }}"
+
+  - name: Attach VETH Pairs
+    shell: |
+      ip netns exec "{{ item.namespace_1 }}" brctl show br | grep -w '{{ item.ns1_veth }}' ; if [ $? -ne 0 ] ; then ip netns exec "{{ item.namespace_1 }}" brctl addif br "{{ item.ns1_veth }}" ; fi
+      ip netns exec "{{ item.namespace_2 }}" brctl show br | grep -w '{{ item.ns2_veth }}' ; if [ $? -ne 0 ] ; then ip netns exec "{{ item.namespace_2 }}" brctl addif br "{{ item.ns2_veth }}" ; fi
+    with_items:
+      - "{{ Tenant }}"

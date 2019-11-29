@@ -1,4 +1,4 @@
-tenant:
+Tenant:
 - C1_veth: CS1c1
   C2_veth: CS2c2
   c1_IP: 10.10.1.1/24
@@ -23,23 +23,27 @@ tenant:
   ns2_veth: CS4n2
 - C1_veth: CS5c1
   C2_veth: CS6c2
-  c1_IP: 10.10.3.1/24
-  c2_IP: 10.10.3.2/24
+  c1_IP: 10.1.3.1/24
+  c1_route: 10.2.3.0/24
+  c2_IP: 10.2.3.2/24
+  c2_route: 10.1.3.0/24
   container_1: CS5
   container_2: CS6
-  namespace_1: ns2
+  namespace_1: ns1
   namespace_2: ns3
   network_type: L3
   ns1_veth: CS5n1
   ns2_veth: CS6n2
 - C1_veth: CS7c1
   C2_veth: CS8c2
-  c1_IP: 10.10.4.1/24
-  c2_IP: 10.10.4.2/24
+  c1_IP: 10.3.4.1/24
+  c1_route: 10.4.4.0/24
+  c2_IP: 10.4.4.2/24
+  c2_route: 10.3.4.0/24
   container_1: CS7
   container_2: CS8
   namespace_1: ns1
-  namespace_2: ns2
+  namespace_2: ns3
   network_type: GRE
   ns1_veth: CS7n1
   ns2_veth: CS8n2
