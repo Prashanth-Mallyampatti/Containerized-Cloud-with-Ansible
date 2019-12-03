@@ -3,11 +3,11 @@ Q2
 
 Execution:
 
-`python3 parse_tenant.py <csv_file_name>`
+`python3 init.py <csv_file_name>`
 
 Example:
 
-`python3 parse_tenant.py test.csv`
+`python3 init.py test.csv`
 
 Assumptions:
 1. Input CSV file is valid. 
