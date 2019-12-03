@@ -47,3 +47,27 @@ Tenant:
   network_type: GRE
   ns1_veth: CS7n1
   ns2_veth: CS8n2
+- C1_veth: CS9c1
+  C2_veth: CS10c2
+  c1_IP: 10.10.5.1/24
+  c2_IP: 10.10.5.2/24
+  container_1: CS9
+  container_2: CS10
+  namespace_1: ns1
+  namespace_2: ns3
+  network_type: VXLAN
+  ns1_veth: CS9n1
+  ns2_veth: CS10n2
+- C1_veth: CS11c1
+  C2_veth: CS12c2
+  c1_IP: 10.3.6.1/24
+  c1_route: 10.4.6.0/24
+  c2_IP: 10.4.6.2/24
+  c2_route: 10.3.6.0/24
+  container_1: CS11
+  container_2: CS12
+  namespace_1: ns1
+  namespace_2: ns3
+  network_type: GRE
+  ns1_veth: CS11n1
+  ns2_veth: CS12n2

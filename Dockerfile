@@ -1,7 +1,7 @@
 FROM ubuntu:18.04
 ENV container docker
 
-MAINTAINER Prashanth_M@SYNTAX
+MAINTAINER Prashanth_M
 
 ARG DEBIAN_FRONTEND=noninteractive
 
