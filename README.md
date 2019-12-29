@@ -1,5 +1,4 @@
-# HW4
-Q2
+# Cloud Automation
 
 Execution:
 
